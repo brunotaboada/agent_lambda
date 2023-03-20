@@ -1,0 +1,6 @@
+applicationType: function
+defaultPackage: agent_lambda
+testFramework: junit
+sourceLanguage: java
+buildTool: gradle
+features: [annotation-api, app-name, aws-lambda, gradle, jackson-databind, java, junit, logback, micronaut-build, readme, shade, x86, yaml]
