@@ -1,6 +1,7 @@
 package agent_lambda;
 
 import agent_lambda.actions.Stop;
+import agent_lambda.collectors.CpuCollector;
 import agent_lambda.collectors.Ec2Collector;
 import agent_lambda.collectors.LambdaCollector;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
@@ -29,22 +30,29 @@ public class FunctionRequestHandler extends MicronautRequestHandler<APIGatewayPr
     @Inject
     LambdaCollector lambdaCollector;
 
+    @Inject
+    CpuCollector cpuCollector;
+
     @Override
     public APIGatewayProxyResponseEvent execute(APIGatewayProxyRequestEvent input) {
         APIGatewayProxyResponseEvent response = new APIGatewayProxyResponseEvent();
         try {
             log.info("Starting Zabbix Agent lambda.");
-            if(Objects.nonNull(input.getBody()) && input.getBody().equals("stop")){
+            if (Objects.nonNull(input.getBody()) && input.getBody().equals("stop")) {
                 log.info("Stopping instances.");
                 stop.stop();
             }
-            if(Objects.nonNull(input.getBody()) && input.getBody().equals("ec2")){
+            if (Objects.nonNull(input.getBody()) && input.getBody().equals("ec2")) {
                 log.info("Collecting EC2 metrics.");
                 ec2Collector.collect();
             }
-            if(Objects.nonNull(input.getBody()) && input.getBody().equals("lambda")){
+            if (Objects.nonNull(input.getBody()) && input.getBody().equals("lambda")) {
                 log.info("Collecting LAMBDA metrics.");
                 lambdaCollector.collect();
+            }
+            if (Objects.nonNull(input.getBody()) && input.getBody().equals("cpu")) {
+                log.info("Collecting CPU metrics.");
+                cpuCollector.collect();
             }
             String json = objectMapper.writeValueAsString(Collections.singletonMap("result", "success"));
             response.setStatusCode(200);

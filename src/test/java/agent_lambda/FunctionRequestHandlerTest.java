@@ -57,4 +57,15 @@ public class FunctionRequestHandlerTest {
         assertEquals(200, response.getStatusCode().intValue());
         assertEquals("{\"result\":\"success\"}", response.getBody());
     }
+
+    @Test
+    public void testCpuCollector() {
+        APIGatewayProxyRequestEvent request = new APIGatewayProxyRequestEvent();
+        request.setHttpMethod("GET");
+        request.setPath("/");
+        request.setBody("cpu");
+        APIGatewayProxyResponseEvent response = handler.execute(request);
+        assertEquals(200, response.getStatusCode().intValue());
+        assertEquals("{\"result\":\"success\"}", response.getBody());
+    }
 }

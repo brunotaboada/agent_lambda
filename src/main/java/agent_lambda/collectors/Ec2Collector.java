@@ -22,21 +22,31 @@ public class Ec2Collector {
     public void collect() {
         try {
 
-            var jsch = this.hosts.getjSch();
-            var hosts = this.hosts.getHosts();
-            if (hosts.isEmpty()) {
+            var jsch = hosts.getjSch();
+            var hostsInfos = hosts.getHosts();
+            if (hostsInfos.isEmpty()) {
                 log.info("Nothing to do.");
                 return;
             }
 
-            ZabbixSender zabbixSender = this.hosts.zabbixSender(jsch, hosts);
+            ZabbixSender zabbixSender = hosts.zabbixSender(jsch, hostsInfos);
 
             if (Objects.isNull(zabbixSender)) {
                 log.info("Zabbix server is down.");
                 return;
             }
 
-            for (var host : hosts) {
+            for (var host : hostsInfos) {
+                var session = hosts.getSession(jsch, "ubuntu", host.ip);
+                var memInfo = hosts.getChannel(session, "sudo df -h | grep /dev/root");
+
+                if(!memInfo.isEmpty()){
+                    var strings = memInfo.get(0).split(" ");
+                    host.free = strings[11].replace("G","");
+                    host.size = strings[7].replace("G","");
+                    host.used = strings[9].replace("G","");
+                }
+                session.disconnect();
 
                 var freeReq = DataObject.builder()
                     .host(host.id)
@@ -59,17 +69,9 @@ public class Ec2Collector {
                     .clock(currentTimeMillis() / 1000)
                     .build();
 
-                var cpuReq = DataObject.builder()
-                    .host(host.id)
-                    .key("cpu.usage")
-                    .value(host.cpu)
-                    .clock(currentTimeMillis() / 1000)
-                    .build();
-
                 var freeResponse = zabbixSender.send(freeReq);
                 var usedResponse = zabbixSender.send(usedReq);
                 var sizeResponse = zabbixSender.send(sizeReq);
-                var cpuResponse = zabbixSender.send(cpuReq);
 
                 if (freeResponse.success()) {
                     log.info("Disk free metric sent successfully for " + host.id);
@@ -85,11 +87,6 @@ public class Ec2Collector {
                     log.info("Disk size metric sent successfully for " + host.id);
                 } else {
                     log.error("Unable to send the disk size metric for " + host.id);
-                }
-                if (cpuResponse.success()) {
-                    log.info("Cpu utilization metric sent successfully for " + host.id);
-                } else {
-                    log.error("Unable to send the Cpu utilization for " + host.id);
                 }
             }
         } catch (Exception e) {

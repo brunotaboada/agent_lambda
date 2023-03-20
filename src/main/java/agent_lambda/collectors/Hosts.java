@@ -5,8 +5,8 @@ import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import io.github.hengyunabc.zabbix.sender.ZabbixSender;
+import io.micronaut.retry.annotation.Retryable;
 import jakarta.inject.Singleton;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.services.ec2.Ec2Client;
@@ -50,27 +50,13 @@ public class Hosts {
         return hostsInfo;
     }
 
-    public ZabbixSender zabbixSender(JSch jsch, List<Hosts.HostInfo> hostInfos){
+    @Retryable
+    public ZabbixSender zabbixSender(JSch jsch, List<Hosts.HostInfo> hostInfos) {
         ZabbixSender zabbixSender = null;
         try {
-            for (var host: hostInfos) {
+            for (var host : hostInfos) {
                 var session = getSession(jsch, "ubuntu", host.ip);
                 var lines = getChannel(session, "sudo zabbix_server -R ha_status | grep active");
-                var memInfo = getChannel(session, "sudo df -h | grep /dev/root");
-                var cpuInfo = getChannel(session, "sudo mpstat 1 1 | grep Average");
-                if(!memInfo.isEmpty()){
-                    var strings = memInfo.get(0).split(" ");
-                    host.free = strings[11].replace("G","");
-                    host.size = strings[7].replace("G","");
-                    host.used = strings[9].replace("G","");
-                }
-                if(!cpuInfo.isEmpty()){
-                    var value = cpuInfo.get(0).split("   ")[1].replace("all","").trim();
-                    if(value.equals("")){
-                        value = StringUtils.substringAfterLast(cpuInfo.get(0),"all").split("    ")[1];
-                    }
-                    host.cpu = value;
-                }
                 if (!lines.isEmpty()) {
                     if (lines.get(0).equalsIgnoreCase("Runtime commands can be executed only in active mode")) {
                         session.disconnect();
@@ -78,12 +64,15 @@ public class Hosts {
                     }
                     zabbixSender = new ZabbixSender(host.ip, 10051);
                     session.disconnect();
+                    break;
                 }
             }
-        }  catch (JSchException e){
+        } catch (JSchException e) {
             log.error("Unable to establish the connection", e);
+            throw new RuntimeException(e);
         } catch (Exception e) {
             log.error("An error occurred", e);
+            throw e;
         }
 
         return zabbixSender;
@@ -152,6 +141,7 @@ public class Hosts {
         String used;
         String size;
         String cpu;
+
         public HostInfo(
             String ip,
             String id
